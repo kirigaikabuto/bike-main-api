@@ -2,49 +2,53 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgtype"
 	"log"
 	"os"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+
+	"github.com/kirigaikabuto/bike-main-api/internal/db" // replace with your actual module name
 )
 
 func main() {
 	_ = godotenv.Load()
+	ctx := context.Background()
 
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is not set")
 	}
 
-	db, err := sql.Open("pgx", dsn)
+	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
-		log.Fatal("failed to open db:", err)
+		log.Fatalf("Unable to create pgx pool: %v", err)
 	}
-	defer db.Close()
+	defer pool.Close()
 
-	err = db.PingContext(context.Background())
+	conn, err := pool.Acquire(ctx)
 	if err != nil {
-		log.Fatal("failed to ping db:", err)
+		log.Fatalf("Unable to acquire connection from pool: %v", err)
 	}
+	defer conn.Release()
 
-	fmt.Println("Connected to DB successfully")
+	queries := db.New(conn)
 
-	// Example query to check the table exists
-	rows, err := db.QueryContext(context.Background(), "SELECT id, name FROM users")
+	user, err := queries.CreateUser(ctx, db.CreateUserParams{
+		Name:  "Yerassyl",
+		Email: pgtype.Text{},
+	})
 	if err != nil {
-		log.Fatal("query failed:", err)
+		log.Fatalf("Error creating user: %v", err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var id int
-		var name string
-		if err := rows.Scan(&id, &name); err != nil {
-			log.Fatal("scan failed:", err)
-		}
-		fmt.Printf("User: %d %s\n", id, name)
+	fmt.Printf("Created user: %+v\n", user)
+
+	fetchedUser, err := queries.GetUserByID(ctx, user.ID)
+	if err != nil {
+		log.Fatalf("Error fetching user: %v", err)
 	}
+	fmt.Printf("Fetched user: %+v\n", fetchedUser)
 }
