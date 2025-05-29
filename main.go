@@ -51,4 +51,18 @@ func main() {
 		log.Fatalf("Error fetching user: %v", err)
 	}
 	fmt.Printf("Fetched user: %+v\n", fetchedUser)
+
+	_, err = queries.CreateBook(ctx, db.CreateBookParams{
+		Name:  "book1",
+		Price: 3.4,
+	})
+	if err != nil {
+		log.Fatalf("Error creating book: %v", err)
+	}
+
+	books, err := queries.ListBooks(ctx)
+	if err != nil {
+		log.Fatalf("Error listing books: %v", err)
+	}
+	fmt.Printf("Listed books: %+v\n", books)
 }
