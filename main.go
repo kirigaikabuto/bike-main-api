@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
+	_ "github.com/jackc/pgx/v5/pgtype"
+	userv1 "github.com/kirigaikabuto/bike-main-api/gen/proto"
+	grpc2 "github.com/kirigaikabuto/bike-main-api/grpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"log"
+	"net"
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,33 +40,20 @@ func main() {
 
 	queries := db.New(conn)
 
-	user, err := queries.CreateUser(ctx, db.CreateUserParams{
-		Name:  "Yerassyl",
-		Email: pgtype.Text{},
-	})
+	grpcServer := grpc.NewServer()
+	userServer := &grpc2.UserServer{Queries: queries}
+
+	userv1.RegisterUserServiceServer(grpcServer, userServer)
+
+	reflection.Register(grpcServer)
+
+	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("Error creating user: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
 
-	fmt.Printf("Created user: %+v\n", user)
-
-	fetchedUser, err := queries.GetUserByID(ctx, user.ID)
-	if err != nil {
-		log.Fatalf("Error fetching user: %v", err)
+	log.Println("🚀 gRPC server running on :50051")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("gRPC server failed: %v", err)
 	}
-	fmt.Printf("Fetched user: %+v\n", fetchedUser)
-
-	_, err = queries.CreateBook(ctx, db.CreateBookParams{
-		Name:  "book1",
-		Price: 3.4,
-	})
-	if err != nil {
-		log.Fatalf("Error creating book: %v", err)
-	}
-
-	books, err := queries.ListBooks(ctx)
-	if err != nil {
-		log.Fatalf("Error listing books: %v", err)
-	}
-	fmt.Printf("Listed books: %+v\n", books)
 }

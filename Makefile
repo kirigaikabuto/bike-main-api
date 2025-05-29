@@ -34,3 +34,6 @@ endif
 
 run:
 	go run main.go
+
+proto/gen:
+	buf generate
